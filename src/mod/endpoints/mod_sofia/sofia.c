@@ -1803,7 +1803,7 @@ static void our_sofia_event_callback(nua_event_t event,
 		sofia_handle_sip_i_notify(session, status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
 		break;
 	case nua_r_register:
-		sofia_reg_handle_sip_r_register(status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
+		sofia_reg_handle_sip_r_register_my(status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
 		break;
 	case nua_i_options:
 		sofia_handle_sip_i_options(status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
@@ -1824,7 +1824,7 @@ static void our_sofia_event_callback(nua_event_t event,
 	case nua_i_register:
 		//nua_respond(nh, SIP_200_OK, SIPTAG_CONTACT(sip->sip_contact), NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
 		//nua_handle_destroy(nh);
-		sofia_reg_handle_sip_i_register(nua, profile, nh, &sofia_private, sip, de, tags);
+		sofia_reg_handle_sip_i_register_my(nua, profile, nh, &sofia_private, sip, de, tags);
 		break;
 	case nua_i_state:
 		sofia_handle_sip_i_state(session, status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
