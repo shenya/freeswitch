@@ -65,6 +65,9 @@ static const switch_state_handler_table_t noop_state_handler = { 0 };
 struct sofia_gateway;
 typedef struct sofia_gateway sofia_gateway_t;
 
+struct sofia_b2breg;
+typedef struct sofia_b2breg sofia_b2breg_t;
+
 struct sofia_gateway_subscription;
 typedef struct sofia_gateway_subscription sofia_gateway_subscription_t;
 
@@ -374,6 +377,7 @@ struct mod_sofia_globals {
 	switch_memory_pool_t *pool;
 	switch_hash_t *profile_hash;
 	switch_hash_t *gateway_hash;
+    switch_hash_t *b2bua_reg_hash; 
 	switch_mutex_t *hash_mutex;
 	uint32_t callid;
 	int32_t running;
@@ -561,6 +565,58 @@ struct sofia_gateway {
 	sofia_gateway_subscription_t *subscriptions;
 	int distinct_to;
 	sofia_cid_type_t cid_type;
+	char register_network_ip[80];
+	int register_network_port;
+};
+
+struct sofia_b2breg {
+    switch_memory_pool_t *pool;
+	nua_handle_t *client_nh;
+	sofia_profile_t *client_profile;
+    sofia_profile_t *server_profile;
+    nua_handle_t *server_nh;
+    char *callid;
+    sofia_gateway_t *out_gw;
+
+    char *server_from;
+    char *server_to;
+	char *server_expires_str;
+
+	char *client_expires_str;
+
+    char *client_from;
+	char *name;
+	char *register_scheme;
+	char *register_realm;
+	char *register_username;
+	char *auth_username;
+	char *register_password;
+	char *register_from;
+	char *options_from_uri;
+	char *options_to_uri;
+	char *options_user_agent;
+	char *register_contact;
+	char *extension;
+	char *real_extension;
+	char *register_to;
+	char *register_proxy;
+	char *register_sticky_proxy;
+	char *outbound_sticky_proxy;
+	char *register_context;
+	char *expires_str;
+	char *register_url;
+	char *destination_prefix;
+	char *from_domain;
+	sofia_transport_t register_transport;
+	uint32_t freq;
+	time_t expires;
+	time_t retry;
+	time_t reg_timeout;
+	uint8_t flags[REG_FLAG_MAX];
+	int32_t retry_seconds;
+	int32_t reg_timeout_seconds;
+	reg_state_t state;
+	int deleted;
 	char register_network_ip[80];
 	int register_network_port;
 };

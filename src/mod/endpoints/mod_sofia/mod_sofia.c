@@ -6114,6 +6114,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_sofia_load)
 	switch_mutex_init(&mod_sofia_globals.mutex, SWITCH_MUTEX_NESTED, mod_sofia_globals.pool);
 	switch_core_hash_init(&mod_sofia_globals.profile_hash);
 	switch_core_hash_init(&mod_sofia_globals.gateway_hash);
+    switch_core_hash_init(&mod_sofia_globals.b2bua_reg_hash);
 	switch_mutex_init(&mod_sofia_globals.hash_mutex, SWITCH_MUTEX_NESTED, mod_sofia_globals.pool);
 
 	if (switch_event_reserve_subclass(MY_EVENT_NOTIFY_REFER) != SWITCH_STATUS_SUCCESS) {

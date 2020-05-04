@@ -1290,6 +1290,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 	char *sw_reg_host;
 	char *token_val = NULL;    
     sofia_gateway_t *out_gw = NULL;
+    sofia_b2breg_t *b2breg = NULL;
 
 	if (sofia_private_p) {
 		sofia_private = *sofia_private_p;
@@ -1539,7 +1540,23 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 		goto reg;
 	}
 
-//start    
+    //start    
+
+    b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, call_id);
+    if (b2breg)
+    {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                          "find reg by callid[%s]\n",
+                          call_id);
+    }
+    else
+    {
+        b2breg = switch_core_alloc(profile->pool, sizeof(sofia_b2breg_t));
+        if (!b2breg)
+        {
+        }
+        memset(b2breg, 0, sizeof(sofia_b2breg_t));
+
         out_gw = switch_core_hash_find(mod_sofia_globals.gateway_hash, "test_gateway");
         if (out_gw)
         {
@@ -1551,8 +1568,16 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                               "sofia_reg_handle_sip_r_register_my get no gw\n");
+            return 1;
         }
-    
+
+        b2breg->out_gw = out_gw;
+        b2breg->client_profile = profile;
+        b2breg->client_nh = nh;
+        b2breg->pool = profile->pool;
+        //b2breg->server_expires_str = switch_core_strdup(b2breg->pool, expies);
+        b2breg->callid = switch_core_strdup(b2breg->pool, call_id);
+
         if (out_gw)
         {
             char *user_via = NULL;
@@ -1573,25 +1598,27 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                               "send register[%s]\n", out_gw->register_url);
 
-            out_gw->register_from = switch_core_sprintf(out_gw->pool, "sip:%s@%s", from_user,
+            b2breg->server_from = switch_core_sprintf(b2breg->pool, "sip:%s@%s", from_user,
                             out_gw->from_domain);
-            out_gw->register_to = out_gw->register_from;
-            tmp_contact = switch_core_sprintf(out_gw->pool, "%s;rinstance=%s",
+            b2breg->server_to = b2breg->register_from;
+            tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
                     out_gw->register_contact,call_id);
 
             nua_register(out_gw->nh,
                 NUTAG_URL(out_gw->register_url),
                 TAG_IF(out_gw->register_sticky_proxy, NUTAG_PROXY(out_gw->register_sticky_proxy)),
                 TAG_IF(user_via, SIPTAG_VIA_STR(user_via)),
-                SIPTAG_TO_STR(out_gw->distinct_to ? out_gw->register_to : out_gw->register_from),
+                SIPTAG_TO_STR(b2breg->server_to),
+                SIPTAG_CALL_ID_STR(b2breg->callid),
                 SIPTAG_CONTACT_STR(tmp_contact),
-                SIPTAG_FROM_STR(out_gw->register_from),
+                SIPTAG_FROM_STR(b2breg->server_from),
                 SIPTAG_EXPIRES_STR(out_gw->expires_str),
                 NUTAG_REGISTRAR(out_gw->register_proxy),
                 NUTAG_OUTBOUND("no-options-keepalive"), NUTAG_OUTBOUND("no-validate"), NUTAG_KEEPALIVE(0), TAG_NULL());
 
             return 1;
         }
+    }
 
 	if (authorization) {
 		char *v_contact_str = NULL;
@@ -3473,19 +3500,6 @@ switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "sofia_reg_handle_sip_i_
 
 //switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                   //"sofia_reg_handle_sip_i_register_my enter\n");
-
-#if 0 /* This seems to cause undesirable effects so nevermind */
-	if (sip->sip_to && sip->sip_to->a_url && sip->sip_to->a_url->url_host) {
-		const char *to_host = sip->sip_to->a_url->url_host;
-		if (profile->reg_db_domain) {
-			if (!sofia_glue_profile_exists(to_host)) {
-				if (sofia_glue_add_profile(switch_core_strdup(profile->pool, to_host), profile) == SWITCH_STATUS_SUCCESS) {
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "Auto-Adding Alias [%s] for profile [%s]\n", to_host, profile->name);
-				}
-			}
-		}
-	}
-#endif
 
 	sofia_glue_get_addr(de->data->e_msg, network_ip, sizeof(network_ip), &network_port);
 
