@@ -1082,6 +1082,12 @@ void sofia_reg_handle_sip_r_challenge(int status,
 									  nua_handle_t *nh, sofia_private_t *sofia_private,
 									  switch_core_session_t *session, sofia_gateway_t *gateway, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
+void sofia_reg_handle_sip_r_challenge2(int status,
+									  char const *phrase,
+									  nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh, sofia_private_t *sofia_private,
+									  switch_core_session_t *session, sofia_gateway_t *gateway, sip_t const *sip,
+								sofia_dispatch_event_t *de, tagi_t tags[]);
+
 void sofia_reg_handle_sip_r_register(int status,
 									 char const *phrase,
 									 nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh, sofia_private_t *sofia_private, sip_t const *sip,

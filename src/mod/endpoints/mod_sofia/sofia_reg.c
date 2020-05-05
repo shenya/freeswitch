@@ -1556,7 +1556,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         {
         }
         memset(b2breg, 0, sizeof(sofia_b2breg_t));
-
+        switch_core_hash_insert(mod_sofia_globals.b2bua_reg_hash, call_id, b2breg);
         out_gw = switch_core_hash_find(mod_sofia_globals.gateway_hash, "test_gateway");
         if (out_gw)
         {
@@ -1598,11 +1598,21 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                               "send register[%s]\n", out_gw->register_url);
 
+            
+            sofia_private = su_alloc(nh->nh_home, sizeof(*sofia_private));
+            if (sofia_private)
+            {
+                memset(sofia_private, 0, sizeof(*sofia_private));
+                sofia_private->call_id = su_strdup(nh->nh_home, call_id);
+                *sofia_private_p = sofia_private;
+            }
+
             b2breg->server_from = switch_core_sprintf(b2breg->pool, "sip:%s@%s", from_user,
                             out_gw->from_domain);
             b2breg->server_to = b2breg->register_from;
             tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
                     out_gw->register_contact,call_id);
+            
 
             nua_register(out_gw->nh,
                 NUTAG_URL(out_gw->register_url),
@@ -3604,7 +3614,6 @@ switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "sofia_reg_handle_sip_i_
   end:
 
 	if (!sofia_private_p || !*sofia_private_p) nua_handle_destroy(nh);
-
 }
 
 
@@ -3808,6 +3817,237 @@ void sofia_reg_handle_sip_r_register_my(int status,
 			sofia_reg_fire_custom_gateway_state_event(gateway, status, phrase);
 		}
 	}
+}
+
+void sofia_reg_handle_sip_r_challenge2(int status,
+									  char const *phrase,
+									  nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh, sofia_private_t *sofia_private,
+									  switch_core_session_t *session, sofia_gateway_t *gateway, sip_t const *sip,
+								sofia_dispatch_event_t *de, tagi_t tags[])
+{
+	sip_www_authenticate_t const *authenticate = NULL;
+	char const *realm = NULL;
+	char const *scheme = NULL;
+	int indexnum;
+	char *cur;
+	char authentication[256] = "";
+	int ss_state;
+	sofia_gateway_t *var_gateway = NULL;
+	const char *gw_name = NULL;
+	switch_channel_t *channel = NULL;
+	const char *sip_auth_username = NULL;
+	const char *sip_auth_password = NULL;
+	char *dup_user = NULL;
+	char *dup_pass = NULL;
+    const char *call_id = NULL;
+    //sofia_gateway_t *out_gw = NULL;
+    sofia_b2breg_t *b2breg = NULL;
+
+    if (profile->name)
+    {
+    
+        call_id = sip->sip_call_id->i_id;
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+                    "sofia_reg_handle_sip_r_challenge2 profile name[%s]\n", profile->name);
+        
+        b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, call_id);
+        if (b2breg)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                    "find reg by callid[%s]\n",
+                    call_id);
+            
+            //nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
+                //NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
+            nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
+                SIPTAG_TO_STR(b2breg->server_to),
+                SIPTAG_FROM_STR(b2breg->server_from),
+                SIPTAG_CALL_ID_STR(b2breg->callid), TAG_NULL());
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                    "find no reg by callid[%s]\n",
+                    call_id);
+        }
+    }
+
+    return;
+
+	if (session && (channel = switch_core_session_get_channel(session))) {
+		sip_auth_username = switch_channel_get_variable(channel, "sip_auth_username");
+		sip_auth_password = switch_channel_get_variable(channel, "sip_auth_password");
+	}
+
+	if (sofia_private) {
+		if (*sofia_private->auth_gateway_name) {
+			gw_name = sofia_private->auth_gateway_name;
+		} else if (*sofia_private->gateway_name) {
+			gw_name = sofia_private->gateway_name;
+		}
+	}
+
+	if (session) {
+		private_object_t *tech_pvt;
+
+		if ((tech_pvt = switch_core_session_get_private(session)) && sofia_test_flag(tech_pvt, TFLAG_REFER)) {
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Received reply from REFER\n");
+			goto end;
+		}
+
+		gw_name = switch_channel_get_variable(switch_core_session_get_channel(session), "sip_use_gateway");
+	}
+
+
+	if (sip->sip_www_authenticate) {
+		authenticate = sip->sip_www_authenticate;
+	} else if (sip->sip_proxy_authenticate) {
+		authenticate = sip->sip_proxy_authenticate;
+	} else {
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Missing Authenticate Header!\n");
+		goto end;
+	}
+
+
+	scheme = (char const *) authenticate->au_scheme;
+
+	if (zstr(scheme)) {
+		scheme = "Digest";
+	}
+
+	if (authenticate->au_params) {
+		for (indexnum = 0; (cur = (char *) authenticate->au_params[indexnum]); indexnum++) {
+			if ((realm = strstr(cur, "realm="))) {
+				realm += 6;
+				break;
+			}
+		}
+
+		if (zstr(realm)) {
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Realm: [%s] is invalid\n", switch_str_nil(realm));
+
+			for (indexnum = 0; (cur = (char *) authenticate->au_params[indexnum]); indexnum++) {
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "DUMP: [%s]\n", cur);
+			}
+			goto end;
+		}
+	} else {
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "NO AUTHENTICATE PARAMS\n");
+		goto end;
+	}
+
+	if (!gateway) {
+		if (gw_name) {
+			var_gateway = sofia_reg_find_gateway((char *) gw_name);
+		}
+
+
+		if (!var_gateway && realm) {
+			char rb[512] = "";
+			char *p = (char *) realm;
+			while (*p == '"') {
+				p++;
+			}
+			switch_set_string(rb, p);
+			if ((p = strchr(rb, '"'))) {
+				*p = '\0';
+			}
+			if (!(var_gateway = sofia_reg_find_gateway(rb))) {
+				var_gateway = sofia_reg_find_gateway_by_realm(rb);
+			}
+		}
+
+		if (!var_gateway && sip && sip->sip_to) {
+			var_gateway = sofia_reg_find_gateway(sip->sip_to->a_url->url_host);
+		}
+
+		if (var_gateway) {
+			gateway = var_gateway;
+		}
+	}
+
+	if (!gateway && !sip_auth_username && sip && sip->sip_to && sip->sip_to->a_url->url_user && sip->sip_to->a_url->url_host) {
+		switch_xml_t x_user, x_param, x_params;
+		switch_event_t *locate_params;
+
+		switch_event_create(&locate_params, SWITCH_EVENT_REQUEST_PARAMS);
+		switch_assert(locate_params);
+
+		switch_event_add_header_string(locate_params, SWITCH_STACK_BOTTOM, "action", "reverse-auth-lookup");
+
+		if ( sip->sip_call_id ) {
+			switch_event_add_header_string(locate_params, SWITCH_STACK_BOTTOM, "sip_call_id", sip->sip_call_id->i_id);
+		}
+
+		if (switch_xml_locate_user_merged("id", sip->sip_to->a_url->url_user, sip->sip_to->a_url->url_host, NULL,
+										  &x_user, locate_params) == SWITCH_STATUS_SUCCESS) {
+			if ((x_params = switch_xml_child(x_user, "params"))) {
+				for (x_param = switch_xml_child(x_params, "param"); x_param; x_param = x_param->next) {
+					const char *var = switch_xml_attr_soft(x_param, "name");
+					const char *val = switch_xml_attr_soft(x_param, "value");
+
+					if (!strcasecmp(var, "reverse-auth-user")) {
+						dup_user = strdup(val);
+						sip_auth_username = dup_user;
+					} else if (!strcasecmp(var, "reverse-auth-pass")) {
+						dup_pass = strdup(val);
+						sip_auth_password = dup_pass;
+					}
+				}
+			}
+			switch_xml_free(x_user);
+		}
+
+		switch_event_destroy(&locate_params);
+	}
+
+	if (sip_auth_username && sip_auth_password) {
+		switch_snprintf(authentication, sizeof(authentication), "%s:%s:%s:%s", scheme, realm, sip_auth_username, sip_auth_password);
+	} else if (gateway) {
+		switch_snprintf(authentication, sizeof(authentication), "%s:%s:%s:%s", scheme, realm, gateway->auth_username, gateway->register_password);
+	} else {
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
+						  "Cannot locate any authentication credentials to complete an authentication request for realm '%s'\n", realm);
+		goto cancel;
+	}
+
+	if (profile->debug) {
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Authenticating '%s' with '%s'.\n",
+						  (sip_auth_username && sip_auth_password) ? sip_auth_username : gateway->auth_username, authentication);
+	}
+
+	ss_state = nua_callstate_authenticating;
+
+	tl_gets(tags, NUTAG_CALLSTATE_REF(ss_state), SIPTAG_WWW_AUTHENTICATE_REF(authenticate), TAG_END());
+
+	nua_authenticate(nh,
+					 TAG_IF(sofia_private && !zstr(sofia_private->gateway_name), SIPTAG_EXPIRES_STR(gateway ? gateway->expires_str : "3600")),
+					 NUTAG_AUTH(authentication), TAG_END());
+
+	goto end;
+
+  cancel:
+
+	if (session) {
+		switch_channel_hangup(switch_core_session_get_channel(session), SWITCH_CAUSE_MANDATORY_IE_MISSING);
+	} else {
+		nua_cancel(nh, SIPTAG_CONTACT(SIP_NONE), TAG_END());
+	}
+
+  end:
+
+
+	switch_safe_free(dup_user);
+	switch_safe_free(dup_pass);
+
+	if (var_gateway) {
+		sofia_reg_release_gateway(var_gateway);
+	}
+
+	return;
+
+
+
 }
 
 
