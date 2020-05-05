@@ -1561,13 +1561,13 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         if (out_gw)
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                              "sofia_reg_handle_sip_r_register_my get gw[%s]\n",
+                              "sofia_reg_handle_register_token2 get gw[%s]\n",
                               out_gw->name);
         }
         else
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                              "sofia_reg_handle_sip_r_register_my get no gw\n");
+                              "sofia_reg_handle_register_token2 get no gw\n");
             return 1;
         }
 
@@ -3717,26 +3717,11 @@ void sofia_reg_handle_sip_r_register_my(int status,
 {
 	sofia_gateway_t *gateway = NULL;
 
-    sofia_gateway_t *out_gw = NULL;
-
-    out_gw = switch_core_hash_find(mod_sofia_globals.gateway_hash, "test_gateway");
-    if (out_gw)
-    {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                          "sofia_reg_handle_sip_r_register_my get gw[%s]\n",
-                          out_gw->name);
-    }
-    else
-    {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                          "sofia_reg_handle_sip_r_register_my get no gw\n");
-    }
+    //sofia_gateway_t *out_gw = NULL;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                      "sofia_reg_handle_sip_r_register_my enter\n");
-
-    
-
+                      "sofia_reg_handle_sip_r_register_my enter: status[%d]\n",
+                      status);
 
 	if (!sofia_private) {
 		nua_handle_destroy(nh);
@@ -3823,11 +3808,6 @@ void sofia_reg_handle_sip_r_register_my(int status,
 			sofia_reg_fire_custom_gateway_state_event(gateway, status, phrase);
 		}
 	}
-
-	if (gateway) {
-		sofia_reg_release_gateway(gateway);
-	}
-
 }
 
 
