@@ -1598,14 +1598,25 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                               "send register[%s]\n", out_gw->register_url);
 
-            
+        if (sofia_private)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "private exist\n");
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "private not exist\n");
             sofia_private = su_alloc(nh->nh_home, sizeof(*sofia_private));
             if (sofia_private)
             {
                 memset(sofia_private, 0, sizeof(*sofia_private));
                 sofia_private->call_id = su_strdup(nh->nh_home, call_id);
                 *sofia_private_p = sofia_private;
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                                 "create private struct \n");
             }
+        }
 
             b2breg->server_from = switch_core_sprintf(b2breg->pool, "sip:%s@%s", from_user,
                             out_gw->from_domain);
@@ -1626,7 +1637,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
                 NUTAG_REGISTRAR(out_gw->register_proxy),
                 NUTAG_OUTBOUND("no-options-keepalive"), NUTAG_OUTBOUND("no-validate"), NUTAG_KEEPALIVE(0), TAG_NULL());
 
-            return 1;
+            return 0;
         }
     }
 

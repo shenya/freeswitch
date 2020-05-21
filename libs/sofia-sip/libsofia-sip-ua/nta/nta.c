@@ -2789,7 +2789,7 @@ void agent_recv_message(nta_agent_t *agent,
   }
   else if (sip && sip->sip_status) {
     agent_recv_response(agent, msg, sip, tport_via, tport);
-    SU_DEBUG_1(("nta: response status[%d]\n", sip->sip_status));
+    //SU_DEBUG_1(("nta: response status[%d]\n", sip->sip_status));
   }
   else {
     agent_recv_garbage(agent, msg, tport);

@@ -2145,6 +2145,9 @@ static void our_sofia_event_callback(nua_event_t event,
 
 	if (sofia_private && sofia_private->call_id) {
 		check_destroy = 0;
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                         "check destroy in %d\n", check_destroy);
+
 	}
 
 	switch (event) {

@@ -81,7 +81,6 @@ nua_server_methods_t const *nua_server_methods[] = {
   NULL
 };
 
-
 int nua_stack_process_request(nua_handle_t *nh,
 			      nta_leg_t *leg,
 			      nta_incoming_t *irq,
@@ -425,6 +424,8 @@ nua_stack_respond(nua_t *nua, nua_handle_t *nh,
       break;
     /* nua_respond() to INVITE can be used without NUTAG_WITH() */
     if (!t && sr->sr_method == sip_method_invite)
+      break;
+    if (sr->sr_method == sip_method_register)
       break;
   }
 
