@@ -578,13 +578,17 @@ struct sofia_b2breg {
     char *callid;
     sofia_gateway_t *out_gw;
 
+    sip_to_t const *client_to;
+    sip_from_t const *client_from;
+
     char *server_from;
     char *server_to;
 	char *server_expires_str;
 
 	char *client_expires_str;
 
-    char *client_from;
+       //char *client_from;
+       //char *client_to;
 	char *name;
 	char *register_scheme;
 	char *register_realm;

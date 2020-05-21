@@ -1577,6 +1577,8 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->pool = profile->pool;
         //b2breg->server_expires_str = switch_core_strdup(b2breg->pool, expies);
         b2breg->callid = switch_core_strdup(b2breg->pool, call_id);
+        b2breg->client_from = sip_to_dup(nh->nh_home, sip->sip_from);
+        b2breg->client_to = sip_to_dup(nh->nh_home, sip->sip_to);
 
         if (out_gw)
         {
@@ -3867,12 +3869,15 @@ void sofia_reg_handle_sip_r_challenge2(int status,
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                     "find reg by callid[%s]\n",
                     call_id);
-            
+            if (sip->sip_www_authenticate) {
+                authenticate = sip->sip_www_authenticate;
+            }
             //nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
                 //NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
             nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
-                SIPTAG_TO_STR(b2breg->server_to),
-                SIPTAG_FROM_STR(b2breg->server_from),
+                SIPTAG_TO_REF(b2breg->client_to),
+                SIPTAG_FROM_REF(b2breg->client_from),
+                SIPTAG_WWW_AUTHENTICATE_REF(authenticate),
                 SIPTAG_CALL_ID_STR(b2breg->callid), TAG_NULL());
         }
         else
