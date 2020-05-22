@@ -1289,8 +1289,11 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 	char *sw_to_user;
 	char *sw_reg_host;
 	char *token_val = NULL;    
-    sofia_gateway_t *out_gw = NULL;
-    sofia_b2breg_t *b2breg = NULL;
+        sofia_gateway_t *out_gw = NULL;
+        sofia_b2breg_t *b2breg = NULL;
+        char auth_buf[256] = {0};
+        int indexnum;
+        char *cur;
 
 	if (sofia_private_p) {
 		sofia_private = *sofia_private_p;
@@ -1544,10 +1547,97 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 
     b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, call_id);
     if (b2breg)
-    {
+    {    
+        char *user_via = NULL;
+        char *register_host = NULL;
+        int now = 1;
+        char *tmp_contact = NULL;
+
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                           "find reg by callid[%s]\n",
                           call_id);
+        b2breg->client_nh = nh;
+        out_gw = b2breg->out_gw;
+        if (out_gw)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                              "sofia_reg_handle_register_token2 get gw[%s]\n",
+                              out_gw->name);
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                              "sofia_reg_handle_register_token2 get no gw\n");
+            return 1;
+        }
+
+        register_host = sofia_glue_get_register_host(out_gw->register_proxy);
+        
+        if (register_host && sofia_glue_check_nat(out_gw->profile, register_host)) {
+            user_via = sofia_glue_create_external_via(NULL, out_gw->profile, out_gw->register_transport);
+        }
+
+        if (sofia_private)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "again private exist\n");
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "again  private not exist\n");
+            sofia_private = su_alloc(nh->nh_home, sizeof(*sofia_private));
+            if (sofia_private)
+            {
+                memset(sofia_private, 0, sizeof(*sofia_private));
+                sofia_private->call_id = su_strdup(nh->nh_home, call_id);
+                *sofia_private_p = sofia_private;
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                                 "create private struct \n");
+            }
+        }
+
+        sofia_reg_new_handle(out_gw, now ? 1 : 0);
+
+        if (!out_gw->nh) {
+            sofia_reg_new_handle(out_gw, now ? 1 : 0);
+        }
+
+        tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
+                out_gw->register_contact,call_id);
+
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                          "again send register[%s]\n", out_gw->register_url);
+
+        authorization = sip->sip_authorization;
+        if (authorization)
+        {
+            switch_snprintf(auth_buf, sizeof(auth_buf), "%s ", authorization->au_scheme);
+             if (authorization->au_params) {
+                 for (indexnum = 0; (cur = (char *) authorization->au_params[indexnum]); indexnum++) {
+                     switch_snprintf(auth_buf + strlen(auth_buf), sizeof(auth_buf) - strlen(auth_buf),
+                     " %s,", cur);
+                 }
+                 auth_buf[strlen(auth_buf) - 1] = '\0';
+             }
+             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                     "auth buf[%s]\n",
+                     auth_buf);
+        }
+
+        nua_register(out_gw->nh,
+            NUTAG_URL(out_gw->register_url),
+            TAG_IF(out_gw->register_sticky_proxy, NUTAG_PROXY(out_gw->register_sticky_proxy)),
+            TAG_IF(user_via, SIPTAG_VIA_STR(user_via)),
+            SIPTAG_CSEQ_REF(b2breg->client_cseq),
+            SIPTAG_TO_STR(b2breg->server_to),
+            SIPTAG_CALL_ID_STR(b2breg->callid),
+            SIPTAG_AUTHORIZATION_STR(auth_buf),
+            SIPTAG_CONTACT_STR(tmp_contact),
+            SIPTAG_FROM_STR(b2breg->server_from),
+            SIPTAG_EXPIRES_STR(out_gw->expires_str),
+            NUTAG_REGISTRAR(out_gw->register_proxy), TAG_NULL());
+        return 0;
     }
     else
     {
@@ -1577,8 +1667,9 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->pool = profile->pool;
         //b2breg->server_expires_str = switch_core_strdup(b2breg->pool, expies);
         b2breg->callid = switch_core_strdup(b2breg->pool, call_id);
-        b2breg->client_from = sip_to_dup(nh->nh_home, sip->sip_from);
+        b2breg->client_from = sip_from_dup(nh->nh_home, sip->sip_from);
         b2breg->client_to = sip_to_dup(nh->nh_home, sip->sip_to);
+        b2breg->client_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
 
         if (out_gw)
         {
@@ -3739,11 +3830,68 @@ void sofia_reg_handle_sip_r_register_my(int status,
 {
 	sofia_gateway_t *gateway = NULL;
 
-    //sofia_gateway_t *out_gw = NULL;
+    sofia_b2breg_t *b2breg = NULL;
+    char auth_buf[256] = {0};
+    const char *call_id = NULL;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                       "sofia_reg_handle_sip_r_register_my enter: status[%d]\n",
                       status);
+
+    if (profile->name)
+    {
+        call_id = sip->sip_call_id->i_id;
+
+        b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, call_id);
+        if (b2breg)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                    "find reg by callid[%s]\n",
+                    call_id);
+#if 0
+            if (sip->sip_www_authenticate) {
+                authenticate = sip->sip_www_authenticate;
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                        "has authenticate, copy, scheme[%s]\n",
+                        authenticate->au_scheme);
+                switch_snprintf(auth_buf, sizeof(auth_buf), "%s ", authenticate->au_scheme);
+                if (authenticate->au_params) {
+                    for (indexnum = 0; (cur = (char *) authenticate->au_params[indexnum]); indexnum++) {
+                        switch_snprintf(auth_buf + strlen(auth_buf), sizeof(auth_buf) - strlen(auth_buf),
+                        " %s,", cur);
+                    }
+                    auth_buf[strlen(auth_buf) - 1] = '\0';
+                }
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                        "auth buf[%s]\n",
+                        auth_buf);
+                nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
+                        SIPTAG_TO_REF(b2breg->client_to),
+                        SIPTAG_FROM_REF(b2breg->client_from),
+                        SIPTAG_WWW_AUTHENTICATE_STR(auth_buf),
+                        SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
+            }
+            else
+#endif
+            {
+                nua_respond(b2breg->client_nh,
+                    status,
+                    phrase,
+                    SIPTAG_TO_REF(b2breg->client_to),
+                    SIPTAG_FROM_REF(b2breg->client_from),
+                    SIPTAG_WWW_AUTHENTICATE_STR(auth_buf),
+                    SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
+            }
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                    "find no reg by callid[%s]\n",
+                    call_id);
+        }
+    }
+
+    return;
 
 	if (!sofia_private) {
 		nua_handle_destroy(nh);
@@ -3855,6 +4003,7 @@ void sofia_reg_handle_sip_r_challenge2(int status,
     const char *call_id = NULL;
     //sofia_gateway_t *out_gw = NULL;
     sofia_b2breg_t *b2breg = NULL;
+    char auth_buf[256] = {0};
 
     if (profile->name)
     {
@@ -3871,14 +4020,36 @@ void sofia_reg_handle_sip_r_challenge2(int status,
                     call_id);
             if (sip->sip_www_authenticate) {
                 authenticate = sip->sip_www_authenticate;
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                        "has authenticate, copy, scheme[%s]\n",
+                        authenticate->au_scheme);
+                switch_snprintf(auth_buf, sizeof(auth_buf), "%s ", authenticate->au_scheme);
+                if (authenticate->au_params) {
+                    for (indexnum = 0; (cur = (char *) authenticate->au_params[indexnum]); indexnum++) {
+                        switch_snprintf(auth_buf + strlen(auth_buf), sizeof(auth_buf) - strlen(auth_buf),
+                        " %s,", cur);
+                    }
+                    auth_buf[strlen(auth_buf) - 1] = '\0';
+                }
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                        "auth buf[%s]\n",
+                        auth_buf);
+                nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
+                        SIPTAG_TO_REF(b2breg->client_to),
+                        SIPTAG_FROM_REF(b2breg->client_from),
+                        SIPTAG_WWW_AUTHENTICATE_STR(auth_buf),
+                        SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
             }
-            //nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
-                //NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
-            nua_respond(b2breg->client_nh, SIP_401_UNAUTHORIZED,
-                SIPTAG_TO_REF(b2breg->client_to),
-                SIPTAG_FROM_REF(b2breg->client_from),
-                SIPTAG_WWW_AUTHENTICATE_REF(authenticate),
-                SIPTAG_CALL_ID_STR(b2breg->callid), TAG_NULL());
+            else
+            {
+                nua_respond(b2breg->client_nh,
+                    sip->sip_status->st_status,
+                    sip->sip_status->st_phrase,
+                    SIPTAG_TO_REF(b2breg->client_to),
+                    SIPTAG_FROM_REF(b2breg->client_from),
+                    SIPTAG_WWW_AUTHENTICATE_STR(auth_buf),
+                    SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
+            }
         }
         else
         {

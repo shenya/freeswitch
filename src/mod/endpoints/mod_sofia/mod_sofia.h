@@ -580,6 +580,7 @@ struct sofia_b2breg {
 
     sip_to_t const *client_to;
     sip_from_t const *client_from;
+    sip_cseq_t const *client_cseq;
 
     char *server_from;
     char *server_to;
