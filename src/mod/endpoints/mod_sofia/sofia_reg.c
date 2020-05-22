@@ -1609,6 +1609,10 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                           "again send register[%s]\n", out_gw->register_url);
 
+        b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
+        switch_snprintf(b2breg->client_contact_str, sizeof(b2breg->client_contact_str),
+                "%s:%s@%s:%d", proto, contact->m_url->url_user, url_ip, network_port);
+
         authorization = sip->sip_authorization;
         if (authorization)
         {
@@ -1670,6 +1674,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->client_from = sip_from_dup(nh->nh_home, sip->sip_from);
         b2breg->client_to = sip_to_dup(nh->nh_home, sip->sip_to);
         b2breg->client_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
+        b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
 
         if (out_gw)
         {
@@ -3873,11 +3878,17 @@ void sofia_reg_handle_sip_r_register_my(int status,
             }
             else
 #endif
+            //sip_contact_t const *donwstream_contact = sip->sip_contact;
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                    "client contact str[%s]\n",
+                    b2breg->client_contact_str);
+
             {
                 nua_respond(b2breg->client_nh,
                     status,
                     phrase,
                     SIPTAG_TO_REF(b2breg->client_to),
+                    SIPTAG_CONTACT_STR(b2breg->client_contact_str),
                     SIPTAG_FROM_REF(b2breg->client_from),
                     SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
             }
