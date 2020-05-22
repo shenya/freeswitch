@@ -3831,7 +3831,7 @@ void sofia_reg_handle_sip_r_register_my(int status,
 	sofia_gateway_t *gateway = NULL;
 
     sofia_b2breg_t *b2breg = NULL;
-    char auth_buf[256] = {0};
+    //char auth_buf[256] = {0};
     const char *call_id = NULL;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
@@ -3879,7 +3879,6 @@ void sofia_reg_handle_sip_r_register_my(int status,
                     phrase,
                     SIPTAG_TO_REF(b2breg->client_to),
                     SIPTAG_FROM_REF(b2breg->client_from),
-                    SIPTAG_WWW_AUTHENTICATE_STR(auth_buf),
                     SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
             }
         }
