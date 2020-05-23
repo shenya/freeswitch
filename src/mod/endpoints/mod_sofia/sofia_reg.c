@@ -3833,8 +3833,6 @@ void sofia_reg_handle_sip_r_register_my(int status,
 								sofia_dispatch_event_t *de,
 									 tagi_t tags[])
 {
-	sofia_gateway_t *gateway = NULL;
-
     sofia_b2breg_t *b2breg = NULL;
     //char auth_buf[256] = {0};
     const char *call_id = NULL;
@@ -3902,92 +3900,6 @@ void sofia_reg_handle_sip_r_register_my(int status,
     }
 
     return;
-
-	if (!sofia_private) {
-		nua_handle_destroy(nh);
-		return;
-	}
-
-	if (!zstr(sofia_private->gateway_name)) {
-		gateway = sofia_reg_find_gateway(sofia_private->gateway_name);
-	}
-
-	if (gateway) {
-		reg_state_t ostate = gateway->state;
-		char oregister_network_ip[80] = { 0 };
-		char network_ip[80] = { 0 };
-
-		if (de && de->data && de->data->e_msg) {
-			if (!zstr_buf(gateway->register_network_ip)) {
-				snprintf(oregister_network_ip, sizeof(oregister_network_ip), "%s", gateway->register_network_ip);
-			}
-			sofia_glue_get_addr(de->data->e_msg, network_ip, sizeof(network_ip), &gateway->register_network_port);
-			if (!zstr_buf(network_ip)) {
-				snprintf(gateway->register_network_ip, sizeof(gateway->register_network_ip), (msg_addrinfo(de->data->e_msg))->ai_addr->sa_family == AF_INET6 ? "[%s]" : "%s", network_ip);
-			}
-		}
-
-		switch (status) {
-		case 200:
-			if (sip && sip->sip_contact) {
-				sip_contact_t *contact = sip->sip_contact;
-				const char *new_expires;
-				uint32_t expi;
-				if (contact->m_next) {
-					char *full;
-
-					for (; contact; contact = contact->m_next) {
-						if ((full = sip_header_as_string(nh->nh_home, (void *) contact))) {
-							if (switch_stristr(gateway->register_contact, full)) {
-								break;
-							}
-
-							su_free(nh->nh_home, full);
-						}
-					}
-				}
-
-				if (!contact) {
-					contact = sip->sip_contact;
-				}
-
-				if (contact->m_expires) {
-					new_expires = contact->m_expires;
-					expi = (uint32_t) atoi(new_expires);
-
-					if (expi > 0 && expi != gateway->freq) {
-						//gateway->freq = expi;
-						//gateway->expires_str = switch_core_sprintf(gateway->pool, "%d", expi);
-
-						if (expi > 60) {
-							gateway->expires = switch_epoch_time_now(NULL) + (expi - 15);
-						} else {
-							gateway->expires = switch_epoch_time_now(NULL) + (expi - 2);
-						}
-
-
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
-										  "Changing expire time to %d by request of proxy %s\n", expi, gateway->register_proxy);
-					}
-				}
-			}
-			gateway->state = REG_STATE_REGISTER;
-			break;
-		case 100:
-			break;
-		default:
-			gateway->state = REG_STATE_FAILED;
-			gateway->failure_status = status;
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "%s Failed Registration with status %s [%d]. failure #%d\n",
-							  gateway->name, switch_str_nil(phrase), status, ++gateway->failures);
-			break;
-		}
-		if (ostate != gateway->state ||
-		    (!zstr_buf(gateway->register_network_ip) &&
-		     (zstr_buf(oregister_network_ip) || strcmp(oregister_network_ip, gateway->register_network_ip)))) {
-			sofia_reg_fire_custom_gateway_state_event(gateway, status, phrase);
-		}
-	}
 }
 
 void sofia_reg_handle_sip_r_challenge2(int status,
