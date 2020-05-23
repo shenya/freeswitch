@@ -1148,6 +1148,31 @@ void sofia_handle_sip_r_message(int status, sofia_profile_t *profile, nua_handle
 
 }
 
+void sofia_handle_sip_r_message_my(int status, sofia_profile_t *profile, nua_handle_t *nh, sip_t const *sip)
+{
+	const char *call_id;
+	int *mstatus;
+
+	if (!(sip && sip->sip_call_id)) {
+		nua_handle_destroy(nh);
+		return;
+	}
+
+	call_id = sip->sip_call_id->i_id;
+
+
+
+	switch_mutex_lock(profile->flag_mutex);
+	mstatus = switch_core_hash_find(profile->chat_hash, call_id);
+	switch_mutex_unlock(profile->flag_mutex);
+
+	if (mstatus) {
+		*mstatus = status;
+	}
+
+}
+
+
 void sofia_wait_for_reply(struct private_object *tech_pvt, nua_event_t event, uint32_t timeout)
 {
 	time_t exp = switch_epoch_time_now(NULL) + timeout;
@@ -1780,7 +1805,7 @@ static void our_sofia_event_callback(nua_event_t event,
 		}
 		break;
 	case nua_r_message:
-		sofia_handle_sip_r_message(status, profile, nh, sip);
+		sofia_handle_sip_r_message_my(status, profile, nh, sip);
 		break;
 	case nua_r_invite:
 		sofia_handle_sip_r_invite(session, status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
@@ -1846,7 +1871,7 @@ static void our_sofia_event_callback(nua_event_t event,
 			}
 
 			if (handle_message) {
-				sofia_presence_handle_sip_i_message(status, phrase, nua, profile, nh, session, sofia_private, sip, de, tags);
+				sofia_presence_handle_sip_i_message_my(status, phrase, nua, profile, nh, session, sofia_private, sip, de, tags);
 			}
 		}
 		break;

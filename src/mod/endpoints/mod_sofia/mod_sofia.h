@@ -1114,6 +1114,9 @@ void sofia_presence_handle_sip_i_publish(nua_t *nua, sofia_profile_t *profile, n
 void sofia_presence_handle_sip_i_message(int status, char const *phrase, nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh,
 										 switch_core_session_t *session, sofia_private_t *sofia_private, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
+void sofia_presence_handle_sip_i_message_my(int status, char const *phrase, nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh,
+										 switch_core_session_t *session, sofia_private_t *sofia_private, sip_t const *sip,
+								sofia_dispatch_event_t *de, tagi_t tags[]);
 void sofia_presence_handle_sip_r_subscribe(int status, char const *phrase, nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh,
 										   sofia_private_t *sofia_private, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
