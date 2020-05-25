@@ -5036,7 +5036,7 @@ void sofia_presence_handle_sip_i_message_my(int status,
 										 sofia_dispatch_event_t *de,
 										 tagi_t tags[])
 {
-    char const *rinstance = NULL;
+    char rinstance_buf[128] = {0};
     sofia_b2breg_t *b2breg = NULL;
     char *pl = NULL;
     const char *ct = NULL;
@@ -5044,6 +5044,7 @@ void sofia_presence_handle_sip_i_message_my(int status,
     sofia_private_t *sofia_private = NULL;
     const char *call_id = NULL;
     sofia_b2bmsg_t *b2bmsg = NULL;
+    int ret = 0;
 
     call_id = sip->sip_call_id->i_id;
 
@@ -5051,18 +5052,24 @@ void sofia_presence_handle_sip_i_message_my(int status,
     if (0 == su_strncmp(profile->name, "external", strlen("external")))
     {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "receive from test_gateway\n");
-        //get request line(instance)
-        rinstance = msg_header_find_param(sip->sip_request->rq_common, "rinstance=");
-        if (!rinstance)
+
+        ret = url_param(sip->sip_request->rq_url->url_params,
+		  "rinstance",
+		  rinstance_buf, sizeof(rinstance_buf));
+        if (ret <= 0)
         {
-			nua_respond(nh, SIP_403_FORBIDDEN, NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
+            nua_respond(nh, SIP_403_FORBIDDEN, NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
             return;
         }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "rinstance[%s]\n", rinstance_buf);
+        }
 
-        b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, rinstance);
+        b2breg = switch_core_hash_find(mod_sofia_globals.b2bua_reg_hash, rinstance_buf);
         if (!b2breg)
         {
-			nua_respond(nh, SIP_404_NOT_FOUND, NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
+            nua_respond(nh, SIP_404_NOT_FOUND, NUTAG_WITH_THIS_MSG(de->data->e_msg), TAG_END());
             return;
         }
         
@@ -5079,6 +5086,7 @@ void sofia_presence_handle_sip_i_message_my(int status,
         {
             return;
         }
+        
         memset(b2bmsg, 0, sizeof(sofia_b2bmsg_t));
         switch_core_hash_insert(mod_sofia_globals.b2bua_msg_hash, call_id, b2bmsg);
         b2bmsg->server_profile = profile;
@@ -5090,8 +5098,32 @@ void sofia_presence_handle_sip_i_message_my(int status,
         b2bmsg->server_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
         b2bmsg->server_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
 
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                         "client_url[%s], client contact[%s]\n", b2breg->client_url, b2breg->client_contact_str);
+
+        if (sofia_private)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "again private exist\n");
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "again  private not exist\n");
+            sofia_private = su_alloc(nh->nh_home, sizeof(*sofia_private));
+            if (sofia_private)
+            {
+                memset(sofia_private, 0, sizeof(*sofia_private));
+                sofia_private->call_id = su_strdup(nh->nh_home, call_id);
+                *sofia_private_p = sofia_private;
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                                 "create private struct \n");
+            }
+        }
+
         //send client
         nua_message(b2breg->client_nh,
+                    NUTAG_URL(b2breg->client_contact_str),
                     TAG_IF(ct, SIPTAG_CONTENT_TYPE_STR(su_strdup(b2breg->client_nh->nh_home, ct))),
                     TAG_IF(pl, SIPTAG_PAYLOAD_STR(su_strdup(b2breg->client_nh->nh_home, pl))),
                     SIPTAG_CALL_ID_STR(b2bmsg->callid),

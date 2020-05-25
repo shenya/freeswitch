@@ -1551,7 +1551,6 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         char *user_via = NULL;
         char *register_host = NULL;
         int now = 1;
-        char *tmp_contact = NULL;
 
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                           "find reg by callid[%s]\n",
@@ -1603,15 +1602,14 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             sofia_reg_new_handle(out_gw, now ? 1 : 0);
         }
 
-        tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
-                out_gw->register_contact,call_id);
-
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                           "again send register[%s]\n", out_gw->register_url);
 
         b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
         switch_snprintf(b2breg->client_contact_str, sizeof(b2breg->client_contact_str),
-                "%s:%s@%s:%d", proto, contact->m_url->url_user, url_ip, network_port);
+                "%s:%s@%s:%d;transport=tcp", proto, contact->m_url->url_user, url_ip, network_port);
+
+        switch_snprintf(b2breg->client_url, sizeof(b2breg->client_url), "%s", contact_str);
 
         authorization = sip->sip_authorization;
         if (authorization)
@@ -1637,7 +1635,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             SIPTAG_TO_STR(b2breg->server_to),
             SIPTAG_CALL_ID_STR(b2breg->callid),
             SIPTAG_AUTHORIZATION_STR(auth_buf),
-            SIPTAG_CONTACT_STR(tmp_contact),
+            SIPTAG_CONTACT_STR(b2breg->server_contact),
             SIPTAG_FROM_STR(b2breg->server_from),
             SIPTAG_EXPIRES_STR(out_gw->expires_str),
             SIPTAG_USER_AGENT_STR(b2breg->client_user_agent),
@@ -1676,13 +1674,13 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->client_to = sip_to_dup(nh->nh_home, sip->sip_to);
         b2breg->client_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
         b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
+        switch_snprintf(b2breg->client_url, sizeof(b2breg->client_url), "%s", contact_str);
 
         if (out_gw)
         {
             char *user_via = NULL;
             char *register_host = NULL;
             int now = 1;
-            char *tmp_contact = NULL;
 
             if (!out_gw->nh) {
                 sofia_reg_new_handle(out_gw, now ? 1 : 0);
@@ -1720,8 +1718,9 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             b2breg->server_from = switch_core_sprintf(b2breg->pool, "sip:%s@%s", from_user,
                             out_gw->from_domain);
             b2breg->server_to = b2breg->server_from;
-            tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
-                    out_gw->register_contact,call_id);
+            b2breg->server_contact = switch_core_sprintf(b2breg->pool, "<sip:gw+test_gateway@47.93.228.87:15080;transport=tcp;"
+                    "rinstance=%s>", call_id);
+
             b2breg->client_user_agent = switch_core_sprintf(b2breg->pool, "%s",
                             "callcenter_webrtc_pc_Sipek_win32/r58257");
 
@@ -1731,7 +1730,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
                 TAG_IF(user_via, SIPTAG_VIA_STR(user_via)),
                 SIPTAG_TO_STR(b2breg->server_to),
                 SIPTAG_CALL_ID_STR(b2breg->callid),
-                SIPTAG_CONTACT_STR(tmp_contact),
+                SIPTAG_CONTACT_STR(b2breg->server_contact),
                 SIPTAG_FROM_STR(b2breg->server_from),
                 SIPTAG_EXPIRES_STR(out_gw->expires_str),
                 SIPTAG_USER_AGENT_STR(b2breg->client_user_agent),
