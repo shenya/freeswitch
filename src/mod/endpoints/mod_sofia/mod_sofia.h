@@ -68,6 +68,9 @@ typedef struct sofia_gateway sofia_gateway_t;
 struct sofia_b2breg;
 typedef struct sofia_b2breg sofia_b2breg_t;
 
+struct sofia_b2bmsg;
+typedef struct sofia_b2bmsg sofia_b2bmsg_t;
+
 struct sofia_gateway_subscription;
 typedef struct sofia_gateway_subscription sofia_gateway_subscription_t;
 
@@ -378,6 +381,7 @@ struct mod_sofia_globals {
 	switch_hash_t *profile_hash;
 	switch_hash_t *gateway_hash;
     switch_hash_t *b2bua_reg_hash; 
+    switch_hash_t *b2bua_msg_hash;
 	switch_mutex_t *hash_mutex;
 	uint32_t callid;
 	int32_t running;
@@ -571,6 +575,8 @@ struct sofia_gateway {
 
 struct sofia_b2breg {
     switch_memory_pool_t *pool;
+    su_timer_t *state_timer;
+    int reg_expire;
 	nua_handle_t *client_nh;
 	sofia_profile_t *client_profile;
     sofia_profile_t *server_profile;
@@ -626,6 +632,26 @@ struct sofia_b2breg {
 	int deleted;
 	char register_network_ip[80];
 	int register_network_port;
+};
+
+struct sofia_b2bmsg {
+    switch_memory_pool_t *pool;
+    su_timer_t *msg_timer;
+    nua_handle_t *client_nh;
+    sofia_profile_t *client_profile;
+    sofia_profile_t *server_profile;
+    nua_handle_t *server_nh;
+    char const *callid;
+    sofia_gateway_t *out_gw;
+
+    sip_to_t const *client_to;
+    sip_from_t const *client_from;
+    sip_cseq_t const *client_cseq;
+    sip_contact_t const *client_contact;
+    char client_contact_str[256];
+
+    char *server_from;
+    char *server_to;
 };
 
 typedef enum {
@@ -1115,7 +1141,7 @@ void sofia_presence_handle_sip_i_message(int status, char const *phrase, nua_t *
 										 switch_core_session_t *session, sofia_private_t *sofia_private, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
 void sofia_presence_handle_sip_i_message_my(int status, char const *phrase, nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh,
-										 switch_core_session_t *session, sofia_private_t *sofia_private, sip_t const *sip,
+										 switch_core_session_t *session, sofia_private_t **sofia_private, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
 void sofia_presence_handle_sip_r_subscribe(int status, char const *phrase, nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh,
 										   sofia_private_t *sofia_private, sip_t const *sip,

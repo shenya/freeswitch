@@ -1151,7 +1151,7 @@ void sofia_handle_sip_r_message(int status, sofia_profile_t *profile, nua_handle
 void sofia_handle_sip_r_message_my(int status, sofia_profile_t *profile, nua_handle_t *nh, sip_t const *sip)
 {
 	const char *call_id;
-	int *mstatus;
+        sofia_b2bmsg_t *b2bmsg = NULL;
 
 	if (!(sip && sip->sip_call_id)) {
 		nua_handle_destroy(nh);
@@ -1160,16 +1160,37 @@ void sofia_handle_sip_r_message_my(int status, sofia_profile_t *profile, nua_han
 
 	call_id = sip->sip_call_id->i_id;
 
+    b2bmsg = switch_core_hash_find(mod_sofia_globals.b2bua_msg_hash, call_id);
+    if (!b2bmsg)
+    {
+        return;
+    }
 
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+            "profile name[%s]\n", profile->name);
 
-	switch_mutex_lock(profile->flag_mutex);
-	mstatus = switch_core_hash_find(profile->chat_hash, call_id);
-	switch_mutex_unlock(profile->flag_mutex);
+    if (0 == su_strncmp(profile->name, "external", strlen("external")))
+    {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                "receive gw response\n");
 
-	if (mstatus) {
-		*mstatus = status;
-	}
+        nua_respond(b2bmsg->client_nh,
+            status,
+            NULL,
+            SIPTAG_TO_REF(b2bmsg->client_to),
+            SIPTAG_CONTACT_STR(b2bmsg->client_contact_str),
+            SIPTAG_FROM_REF(b2bmsg->client_from),
+            SIPTAG_CALL_ID_STR(b2bmsg->callid), TAG_END());
+    }
+    else
+    {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                "receive response from client\n");
+    }
 
+    switch_mutex_lock(profile->flag_mutex);
+    switch_core_hash_delete(mod_sofia_globals.b2bua_msg_hash, call_id);
+    switch_mutex_unlock(profile->flag_mutex);
 }
 
 
@@ -1871,7 +1892,7 @@ static void our_sofia_event_callback(nua_event_t event,
 			}
 
 			if (handle_message) {
-				sofia_presence_handle_sip_i_message_my(status, phrase, nua, profile, nh, session, sofia_private, sip, de, tags);
+				sofia_presence_handle_sip_i_message_my(status, phrase, nua, profile, nh, session, &sofia_private, sip, de, tags);
 			}
 		}
 		break;
