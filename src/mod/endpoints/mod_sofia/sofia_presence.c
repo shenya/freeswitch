@@ -5045,8 +5045,10 @@ void sofia_presence_handle_sip_i_message_my(int status,
     const char *call_id = NULL;
     sofia_b2bmsg_t *b2bmsg = NULL;
 
+    call_id = sip->sip_call_id->i_id;
+
     // From server
-    if (0 == su_strncmp(profile->name, "test_gateway", strlen("test_gateway")))
+    if (0 == su_strncmp(profile->name, "external", strlen("external")))
     {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "receive from test_gateway\n");
         //get request line(instance)
@@ -5072,16 +5074,35 @@ void sofia_presence_handle_sip_i_message_my(int status,
             ct = sip->sip_content_type->c_type;
         }
 
+        b2bmsg = switch_core_alloc(profile->pool, sizeof(sofia_b2bmsg_t));
+        if (!b2bmsg)
+        {
+            return;
+        }
+        memset(b2bmsg, 0, sizeof(sofia_b2bmsg_t));
+        switch_core_hash_insert(mod_sofia_globals.b2bua_msg_hash, call_id, b2bmsg);
+        b2bmsg->server_profile = profile;
+        b2bmsg->server_nh = nh;
+        b2bmsg->pool = profile->pool;
+        b2bmsg->callid = switch_core_strdup(b2bmsg->pool, call_id);
+        b2bmsg->server_from = sip_from_dup(nh->nh_home, sip->sip_from);
+        b2bmsg->server_to = sip_to_dup(nh->nh_home, sip->sip_to);
+        b2bmsg->server_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
+        b2bmsg->server_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
+
         //send client
         nua_message(b2breg->client_nh,
                     TAG_IF(ct, SIPTAG_CONTENT_TYPE_STR(su_strdup(b2breg->client_nh->nh_home, ct))),
                     TAG_IF(pl, SIPTAG_PAYLOAD_STR(su_strdup(b2breg->client_nh->nh_home, pl))),
+                    SIPTAG_CALL_ID_STR(b2bmsg->callid),
+                    SIPTAG_FROM_REF(b2bmsg->client_from),
+                    SIPTAG_TO_REF(b2bmsg->client_to),
+                    SIPTAG_CSEQ_REF(b2bmsg->client_cseq),
                     TAG_END());
     }
     //From client
     else
     {
-        call_id = sip->sip_call_id->i_id;
         if (sofia_private)
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,

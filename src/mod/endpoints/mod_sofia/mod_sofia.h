@@ -650,8 +650,11 @@ struct sofia_b2bmsg {
     sip_contact_t const *client_contact;
     char client_contact_str[256];
 
-    char *server_from;
-    char *server_to;
+
+    sip_to_t const *server_to;
+    sip_from_t const *server_from;
+    sip_cseq_t const *server_cseq;
+    sip_contact_t const *server_contact;
 };
 
 typedef enum {

@@ -1152,6 +1152,7 @@ void sofia_handle_sip_r_message_my(int status, sofia_profile_t *profile, nua_han
 {
 	const char *call_id;
         sofia_b2bmsg_t *b2bmsg = NULL;
+        sofia_gateway_t *out_gw = NULL;
 
 	if (!(sip && sip->sip_call_id)) {
 		nua_handle_destroy(nh);
@@ -1180,12 +1181,22 @@ void sofia_handle_sip_r_message_my(int status, sofia_profile_t *profile, nua_han
             SIPTAG_TO_REF(b2bmsg->client_to),
             SIPTAG_CONTACT_STR(b2bmsg->client_contact_str),
             SIPTAG_FROM_REF(b2bmsg->client_from),
+            SIPTAG_CSEQ_REF(b2bmsg->client_cseq),
             SIPTAG_CALL_ID_STR(b2bmsg->callid), TAG_END());
     }
     else
     {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                 "receive response from client\n");
+
+        out_gw = b2bmsg->out_gw;
+        nua_respond(out_gw->nh,
+            status,
+            NULL,
+            SIPTAG_TO_REF(b2bmsg->server_to),
+            SIPTAG_FROM_REF(b2bmsg->server_from),
+            SIPTAG_CSEQ_REF(b2bmsg->server_cseq),
+            SIPTAG_CALL_ID_STR(b2bmsg->callid), TAG_END());
     }
 
     switch_mutex_lock(profile->flag_mutex);
