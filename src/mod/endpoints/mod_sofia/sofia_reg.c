@@ -1640,6 +1640,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
             SIPTAG_CONTACT_STR(tmp_contact),
             SIPTAG_FROM_STR(b2breg->server_from),
             SIPTAG_EXPIRES_STR(out_gw->expires_str),
+            SIPTAG_USER_AGENT_STR(b2breg->client_user_agent),
             NUTAG_REGISTRAR(out_gw->register_proxy), TAG_NULL());
         return 0;
     }
@@ -1718,10 +1719,11 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 
             b2breg->server_from = switch_core_sprintf(b2breg->pool, "sip:%s@%s", from_user,
                             out_gw->from_domain);
-            b2breg->server_to = b2breg->register_from;
+            b2breg->server_to = b2breg->server_from;
             tmp_contact = switch_core_sprintf(b2breg->pool, "%s;rinstance=%s",
                     out_gw->register_contact,call_id);
-            
+            b2breg->client_user_agent = switch_core_sprintf(b2breg->pool, "%s",
+                            "callcenter_webrtc_pc_Sipek_win32/r58257");
 
             nua_register(out_gw->nh,
                 NUTAG_URL(out_gw->register_url),
@@ -1732,6 +1734,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
                 SIPTAG_CONTACT_STR(tmp_contact),
                 SIPTAG_FROM_STR(b2breg->server_from),
                 SIPTAG_EXPIRES_STR(out_gw->expires_str),
+                SIPTAG_USER_AGENT_STR(b2breg->client_user_agent),
                 NUTAG_REGISTRAR(out_gw->register_proxy),
                 NUTAG_OUTBOUND("no-options-keepalive"), NUTAG_OUTBOUND("no-validate"), NUTAG_KEEPALIVE(0), TAG_NULL());
 
@@ -3841,6 +3844,10 @@ void sofia_reg_handle_sip_r_register_my(int status,
                       "sofia_reg_handle_sip_r_register_my enter: status[%d]\n",
                       status);
 
+    if (!sip)
+    {
+        return;
+    }
     if (profile->name)
     {
         call_id = sip->sip_call_id->i_id;

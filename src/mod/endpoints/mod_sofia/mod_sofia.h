@@ -588,6 +588,7 @@ struct sofia_b2breg {
     sip_from_t const *client_from;
     sip_cseq_t const *client_cseq;
     sip_contact_t const *client_contact;
+    char *client_user_agent;
     char client_contact_str[256];
 
     char *server_from;
