@@ -1607,7 +1607,7 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
 
         b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
         switch_snprintf(b2breg->client_contact_str, sizeof(b2breg->client_contact_str),
-                "%s:%s@%s:%d;transport=tcp", proto, contact->m_url->url_user, url_ip, network_port);
+                "%s:%s@%s:%d;transport=udp", proto, contact->m_url->url_user, url_ip, network_port);
 
         switch_snprintf(b2breg->client_url, sizeof(b2breg->client_url), "%s", contact_str);
 
@@ -1675,6 +1675,8 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->client_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
         b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
         switch_snprintf(b2breg->client_url, sizeof(b2breg->client_url), "%s", contact_str);
+        switch_snprintf(b2breg->client_contact_str, sizeof(b2breg->client_contact_str),
+                "%s:%s@%s:%d;transport=udp", proto, contact->m_url->url_user, url_ip, network_port);
 
         if (out_gw)
         {

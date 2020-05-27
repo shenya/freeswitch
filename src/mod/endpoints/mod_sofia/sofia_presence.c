@@ -5045,6 +5045,7 @@ void sofia_presence_handle_sip_i_message_my(int status,
     const char *call_id = NULL;
     sofia_b2bmsg_t *b2bmsg = NULL;
     int ret = 0;
+    nua_handle_t *tmp_nh = NULL;
 
     call_id = sip->sip_call_id->i_id;
 
@@ -5099,7 +5100,7 @@ void sofia_presence_handle_sip_i_message_my(int status,
         b2bmsg->server_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
 
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                         "client_url[%s], client contact[%s]\n", b2breg->client_url, b2breg->client_contact_str);
+                         "client_url[%s], use client contact[%s]\n", b2breg->client_url, b2breg->client_contact_str);
 
         if (sofia_private)
         {
@@ -5121,14 +5122,24 @@ void sofia_presence_handle_sip_i_message_my(int status,
             }
         }
 
+        if (!b2breg->client_nh)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                             "Invalid client nh\n");
+        }
+
+        if (!tmp_nh) {
+            tmp_nh = nua_handle(profile->nua, NULL, TAG_END());
+        }
+        
         //send client
-        nua_message(b2breg->client_nh,
+        nua_message(tmp_nh,
                     NUTAG_URL(b2breg->client_contact_str),
                     TAG_IF(ct, SIPTAG_CONTENT_TYPE_STR(su_strdup(b2breg->client_nh->nh_home, ct))),
                     TAG_IF(pl, SIPTAG_PAYLOAD_STR(su_strdup(b2breg->client_nh->nh_home, pl))),
                     SIPTAG_CALL_ID_STR(b2bmsg->callid),
-                    SIPTAG_FROM_REF(b2bmsg->client_from),
-                    SIPTAG_TO_REF(b2bmsg->client_to),
+                    //SIPTAG_FROM_REF(b2bmsg->client_from),
+                    //SIPTAG_TO_REF(b2bmsg->client_to),
                     SIPTAG_CSEQ_REF(b2bmsg->client_cseq),
                     TAG_END());
     }
