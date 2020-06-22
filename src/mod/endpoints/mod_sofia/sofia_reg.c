@@ -1559,8 +1559,13 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         int now = 1;
 
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
-                          "find reg by callid[%s]\n",
-                          call_id);
+                          "find reg by callid[%s], exptime[%ld]\n",
+                          call_id, exptime);
+
+        if (0 == exptime)
+        {
+            b2breg->dereg_flag = 1;
+        }
         b2breg->client_nh = nh;
         out_gw = b2breg->out_gw;
         if (out_gw)
@@ -3911,6 +3916,13 @@ void sofia_reg_handle_sip_r_register_my(int status,
 
             if (200 == status)
             {
+                if (b2breg->dereg_flag)
+                {
+                    sql= switch_mprintf("delete from sip_registrations where call_id='%s'",
+                                    call_id);
+                }
+                else
+                {
                     sql= switch_mprintf("insert into sip_registrations(call_id,sip_user,sip_host,presence_hosts,"\
                             "contact,status,ping_status,ping_count,ping_time,force_ping,rpid,expires,ping_expires,"\
                             "user_agent,server_user,server_host,profile_name,hostname,network_ip,network_port,"\
@@ -3925,6 +3937,8 @@ void sofia_reg_handle_sip_r_register_my(int status,
                             //"<sip:1000@10.0.0.153:7368;fs_nat=yes;fs_path=sip%3A1000%40124.202.182.82%3A7368>",
                             (long) b2breg->reg_time + (long) b2breg->exptime,
                             (long) b2breg->reg_time + (long) b2breg->exptime + 20);
+                }
+
                 if (sql) {
                     sofia_glue_execute_sql_now(b2breg->client_profile, &sql, SWITCH_TRUE);
                 }
