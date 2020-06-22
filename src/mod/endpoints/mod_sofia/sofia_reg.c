@@ -1048,8 +1048,14 @@ char *sofia_reg_find_reg_url(sofia_profile_t *profile, const char *user, const c
 	if (host) {
 		sql = switch_mprintf("select contact from sip_registrations where sip_user='%q' and (sip_host='%q' or presence_hosts like '%%%q%%')",
 						user, host, host);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                          "sofia_reg_find_reg_url host[%s], user[%s]\n",
+                          host, user);
 	} else {
 		sql = switch_mprintf("select contact from sip_registrations where sip_user='%q'", user);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
+                          "sofia_reg_find_reg_url , user[%s]\n",
+                          user);
 	}
 
 
@@ -1675,8 +1681,10 @@ uint8_t sofia_reg_handle_register_token2(nua_t *nua, sofia_profile_t *profile, n
         b2breg->client_cseq = sip_cseq_dup(nh->nh_home, sip->sip_cseq);
         b2breg->client_contact = sip_contact_dup(nh->nh_home, sip->sip_contact);
         switch_snprintf(b2breg->client_url, sizeof(b2breg->client_url), "%s", contact_str);
+        b2breg->exptime = 300;
+        b2breg->reg_time = reg_time;
         switch_snprintf(b2breg->client_contact_str, sizeof(b2breg->client_contact_str),
-                "%s:%s@%s:%d;transport=udp", proto, contact->m_url->url_user, url_ip, network_port);
+                "%s:%s@%s:%d;fs_nat=no", proto, contact->m_url->url_user, url_ip, network_port);
 
         if (out_gw)
         {
@@ -3840,6 +3848,7 @@ void sofia_reg_handle_sip_r_register_my(int status,
     sofia_b2breg_t *b2breg = NULL;
     //char auth_buf[256] = {0};
     const char *call_id = NULL;
+    char *sql = NULL;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                       "sofia_reg_handle_sip_r_register_my enter: status[%d]\n",
@@ -3884,6 +3893,7 @@ void sofia_reg_handle_sip_r_register_my(int status,
             }
             else
 #endif
+
             //sip_contact_t const *donwstream_contact = sip->sip_contact;
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
                     "client contact str[%s]\n",
@@ -3897,6 +3907,27 @@ void sofia_reg_handle_sip_r_register_my(int status,
                     SIPTAG_CONTACT_STR(b2breg->client_contact_str),
                     SIPTAG_FROM_REF(b2breg->client_from),
                     SIPTAG_CALL_ID_STR(b2breg->callid), TAG_END());
+            }
+
+            if (200 == status)
+            {
+                    sql= switch_mprintf("insert into sip_registrations(call_id,sip_user,sip_host,presence_hosts,"\
+                            "contact,status,ping_status,ping_count,ping_time,force_ping,rpid,expires,ping_expires,"\
+                            "user_agent,server_user,server_host,profile_name,hostname,network_ip,network_port,"\
+                            "sip_username,sip_realm,mwi_user,mwi_host,orig_server_host,orig_hostname,sub_host) "\
+                            "values('%q','1008_00010078','172.17.244.156','172.17.244.156,172.17.244.156',"\
+                            "'%q','Registered(UDP-NAT)','Reachable',0,'',0,'unknown',%ld,%ld,"\
+                            "'eyeBeam release 3004t stamp 16741','1008_00010078','172.17.244.156','internal',"\
+                            "'test','124.202.182.82','7368','1008_00010078','47.93.228.87','1008_00010078','172.17.244.156','172.17.244.156',"\
+                            "'test','172.17.244.156')",
+                            call_id,
+                            b2breg->client_contact_str,
+                            //"<sip:1000@10.0.0.153:7368;fs_nat=yes;fs_path=sip%3A1000%40124.202.182.82%3A7368>",
+                            (long) b2breg->reg_time + (long) b2breg->exptime,
+                            (long) b2breg->reg_time + (long) b2breg->exptime + 20);
+                if (sql) {
+                    sofia_glue_execute_sql_now(b2breg->client_profile, &sql, SWITCH_TRUE);
+                }
             }
         }
         else
